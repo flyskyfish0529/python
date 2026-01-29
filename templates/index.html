@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 智能监控终端</title>
+    <style>
+        :root {
+            --bg-color: #121212;
+            --panel-bg: #1e1e1e;
+            --text-main: #ffffff;
+            --text-sec: #b0b0b0;
+            --accent: #007bff;
+            --success: #28a745;
+            --danger: #dc3545;
+            --warning: #ffc107;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden; /* 防止整个页面出现滚动条 */
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #333;
+            flex-shrink: 0;
+        }
+
+        h2 { margin: 0; letter-spacing: 1px; }
+
+        /* 主布局：左右两栏 */
+        .main-layout {
+            display: flex;
+            gap: 20px;
+            flex: 1; /* 占满剩余高度 */
+            overflow: hidden;
+        }
+
+        /* --- 左侧面板：视频 + 控制 + 日志 --- */
+        .left-panel {
+            flex: 3;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            min-width: 0; /* 防止 flex 子元素溢出 */
+        }
+
+        /* 控制栏 */
+        .controls {
+            background: #2a2a2a;
+            padding: 10px 15px;
+            border-radius: 8px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            border: 1px solid #444;
+            flex-shrink: 0;
+        }
+
+        button {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: opacity 0.2s;
+        }
+        button:hover { opacity: 0.8; }
+        .btn-upload { background: var(--accent); color: white; }
+        .btn-reset { background: #444; color: white; border: 1px solid #666; }
+
+        /* 视频显示区 */
+        .video-box {
+            background: #000;
+            border-radius: 8px;
+            border: 2px solid #333;
+            position: relative;
+            flex-grow: 0;
+            height: 55%; /* 占据左侧高度的 55% */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+        .video-box img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        /* 数据统计条 */
+        .stats-bar {
+            display: flex;
+            gap: 20px;
+            background: var(--panel-bg);
+            padding: 12px;
+            border-radius: 8px;
+            justify-content: space-around;
+            border: 1px solid #333;
+            flex-shrink: 0;
+        }
+        .stat-item { font-size: 0.9rem; color: var(--text-sec); }
+        .stat-item span { font-size: 1.4rem; font-weight: bold; color: var(--accent); margin-left: 5px; }
+
+        /* 通行日志区 */
+        .log-panel {
+            background: var(--panel-bg);
+            border-radius: 8px;
+            padding: 10px;
+            flex: 1; /* 占据左侧剩余的所有空间 */
+            border: 1px solid #333;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .log-header {
+            display: flex;
+            justify-content: space-between;
+            color: var(--success);
+            font-weight: bold;
+            font-size: 0.9rem;
+            margin-bottom: 8px;
+            border-bottom: 1px solid #333;
+            padding-bottom: 5px;
+        }
+        .log-list {
+            overflow-y: auto;
+            flex: 1;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+        }
+        .log-item {
+            padding: 4px 0;
+            border-bottom: 1px solid #2a2a2a;
+            display: flex;
+            justify-content: space-between;
+        }
+        .log-name { color: #fff; }
+        .log-time { color: #666; }
+
+        /* --- 右侧面板：陌生人待处理 --- */
+        .right-panel {
+            flex: 1;
+            background: #1a1a1a;
+            border-left: 1px solid #333;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            border-radius: 8px;
+            min-width: 250px;
+        }
+
+        .panel-title {
+            color: var(--warning);
+            font-size: 1rem;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #444;
+            padding-bottom: 8px;
+            font-weight: bold;
+        }
+
+        .pending-list {
+            flex: 1;
+            overflow-y: auto;
+            padding-right: 5px;
+        }
+
+        /* 陌生人卡片样式 */
+        .stranger-card {
+            background: #2c2c2c;
+            border-radius: 6px;
+            padding: 10px;
+            margin-bottom: 12px;
+            border: 1px solid #444;
+            animation: fadeIn 0.4s;
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .stranger-card img {
+            width: 100%;
+            height: 120px;
+            object-fit: cover; /* 保持填充，可能裁剪 */
+            object-position: top; /* 聚焦头部 */
+            border-radius: 4px;
+            margin-bottom: 8px;
+            border: 1px solid #555;
+            cursor: zoom-in;
+        }
+
+        .stranger-info { display: flex; justify-content: space-between; font-size: 0.8rem; color: #aaa; margin-bottom: 5px; }
+
+        .stranger-card input {
+            width: 100%;
+            padding: 6px;
+            margin-bottom: 8px;
+            background: #111;
+            border: 1px solid #555;
+            color: white;
+            border-radius: 3px;
+            box-sizing: border-box;
+        }
+        .stranger-card input:focus { outline: none; border-color: var(--accent); }
+
+        .btn-group { display: flex; gap: 5px; }
+        .btn-group button { flex: 1; font-size: 0.8rem; padding: 5px; }
+        .btn-confirm { background: var(--success); color: white; }
+        .btn-delete { background: var(--danger); color: white; }
+
+        /* 滚动条美化 */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #1a1a1a; }
+        ::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #666; }
+
+    </style>
+</head>
+<body>
+
+    <header>
+        <h2>AI 智能监控终端 <span style="font-size: 0.8rem; color: #666; font-weight: normal;">(YOLOv8 + FaceNet)</span></h2>
+    </header>
+
+    <div class="main-layout">
+
+        <div class="left-panel">
+
+            <div class="controls">
+                <form id="uploadForm" enctype="multipart/form-data" style="display: flex; gap: 10px; align-items: center; margin: 0;">
+                    <input type="file" name="file" accept="video/*" style="color: #ccc; font-size: 0.9rem;">
+                    <button type="submit" class="btn-upload">上传视频分析</button>
+                </form>
+                <div style="width: 1px; height: 20px; background: #555;"></div>
+                <button onclick="resetCamera()" class="btn-reset">↺ 切回摄像头</button>
+            </div>
+
+            <div class="video-box">
+                <img id="videoStream" src="{{ url_for('video_feed') }}" alt="Live Feed">
+                <div style="position: absolute; top: 10px; left: 10px; font-size: 12px; color: rgba(255,255,255,0.6); background: rgba(0,0,0,0.5); padding: 2px 5px; border-radius: 3px;">LIVE</div>
+            </div>
+
+            <div class="stats-bar">
+                <div class="stat-item">当前画面人数: <span id="curr-num">0</span></div>
+                <div class="stat-item">累计总 ID 数: <span id="total-count">0</span></div>
+            </div>
+
+            <div class="log-panel">
+                <div class="log-header">
+                    <span>✅ 熟人通行记录</span>
+                    <button onclick="clearLogs()" style="background: transparent; border: none; color: #888; font-size: 0.8rem; cursor: pointer;">[清空记录]</button>
+                </div>
+                <div class="log-list" id="accessLogList">
+                    <div style="text-align: center; color: #444; margin-top: 10px;">等待通行数据...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="right-panel">
+            <div class="panel-title">🚩 待确认陌生人 (停留>5s)</div>
+            <div class="pending-list" id="pendingList">
+                <div style="text-align: center; color: #555; margin-top: 30px; font-size: 0.9rem;">
+                    暂无待处理目标...
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const videoImg = document.getElementById('videoStream');
+
+        // --- 1. 视频源控制 ---
+        document.getElementById('uploadForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const btn = e.target.querySelector('button');
+            const originalText = btn.innerText;
+            btn.innerText = "处理中...";
+            btn.disabled = true;
+
+            const formData = new FormData(e.target);
+            try {
+                await fetch('/upload_video', { method: 'POST', body: formData });
+                // 强制刷新 img src
+                videoImg.src = "{{ url_for('video_feed') }}?t=" + Date.now();
+            } catch(err) {
+                alert("上传失败");
+            } finally {
+                btn.innerText = originalText;
+                btn.disabled = false;
+            }
+        };
+
+        async function resetCamera() {
+            await fetch('/reset_camera', { method: 'POST' });
+            videoImg.src = "{{ url_for('video_feed') }}?t=" + Date.now();
+        }
+
+        // --- 2. 基础数据统计 (1秒刷新) ---
+        setInterval(async () => {
+            try {
+                const res = await fetch('/stats');
+                const data = await res.json();
+                document.getElementById('curr-num').innerText = data.current_num;
+                document.getElementById('total-count').innerText = data.count;
+            } catch(e) {}
+        }, 1000);
+
+        // --- 3. 白名单日志 (1秒刷新) ---
+        async function updateAccessLogs() {
+            try {
+                const res = await fetch('/get_access_logs');
+                const logs = await res.json();
+                const container = document.getElementById('accessLogList');
+
+                if (logs.length === 0) {
+                    container.innerHTML = '<div style="text-align:center; color:#444; margin-top:10px;">暂无记录...</div>';
+                    return;
+                }
+
+                // 直接重绘日志列表 (日志只需展示，无需交互)
+                let html = '';
+                logs.forEach(log => {
+                    html += `
+                        <div class="log-item">
+                            <span class="log-name">👤 ${log.name}</span>
+                            <span class="log-time" style="font-size:0.8rem;">ID:${log.id} | ${log.time}</span>
+                        </div>
+                    `;
+                });
+                container.innerHTML = html;
+            } catch (e) {}
+        }
+        setInterval(updateAccessLogs, 1000);
+
+        async function clearLogs() {
+            await fetch('/clear_logs', { method: 'POST' });
+            updateAccessLogs();
+        }
+
+        // --- 4. 陌生人任务列表 (智能增量更新) ---
+        async function checkPendingFaces() {
+            try {
+                const res = await fetch('/get_pending_faces?t=' + Date.now());
+                const files = await res.json();
+                const container = document.getElementById('pendingList');
+
+                // 空状态处理
+                if (files.length === 0) {
+                    container.innerHTML = '<div style="text-align: center; color: #555; margin-top: 30px; font-size: 0.9rem;">暂无待处理目标...</div>';
+                    return;
+                }
+
+                // 如果之前是空状态提示，先清空
+                if (container.innerText.includes('暂无待处理')) {
+                    container.innerHTML = '';
+                }
+
+                const serverFileSet = new Set(files);
+
+                // A. 删除已过期的卡片
+                document.querySelectorAll('.stranger-card').forEach(card => {
+                    const fname = card.getAttribute('data-filename');
+                    if (!serverFileSet.has(fname)) {
+                        card.remove();
+                    }
+                });
+
+                // B. 添加新卡片 (保持输入框状态)
+                files.forEach(file => {
+                    if (!document.getElementById(`card-${file}`)) {
+                        const trackId = file.split('_')[1] || '?';
+                        const card = document.createElement('div');
+                        card.className = 'stranger-card';
+                        card.id = `card-${file}`;
+                        card.setAttribute('data-filename', file);
+
+                        card.innerHTML = `
+                            <img src="/pending_img/${file}" onclick="window.open(this.src)">
+                            <div class="stranger-info">
+                                <span>Track ID: ${trackId}</span>
+                                <span>Pending</span>
+                            </div>
+                            <input type="text" placeholder="输入姓名 (英文)..." id="name-${file}" autocomplete="off">
+                            <div class="btn-group">
+                                <button class="btn-confirm" onclick="confirmPerson('${file}')">入库</button>
+                                <button class="btn-delete" onclick="deletePerson('${file}')">忽略</button>
+                            </div>
+                        `;
+                        container.prepend(card);
+                    }
+                });
+
+            } catch (e) { console.error(e); }
+        }
+        // 2秒刷新一次任务列表
+        setInterval(checkPendingFaces, 2000);
+
+        // --- 按钮操作 ---
+        // --- 在 index.html 的 script 中替换 confirmPerson ---
+
+        async function confirmPerson(filename) {
+            console.log("点击了入库按钮:", filename); // F12 控制台看这里
+
+            const nameInput = document.getElementById(`name-${filename}`);
+            if (!nameInput) {
+                alert("错误：找不到输入框，请刷新页面重试");
+                return;
+            }
+
+            const name = nameInput.value.trim();
+            if (!name) {
+                alert("请输入姓名！");
+                return;
+            }
+
+            // 按钮变色，提示用户正在处理
+            const btn = document.querySelector(`#card-${filename.replace('.', '\\.')} .btn-confirm`); // 处理文件名中的点
+            if(btn) {
+                btn.innerText = "处理中...";
+                btn.disabled = true;
+            }
+
+            try {
+                const res = await fetch('/confirm_stranger', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ filename, name })
+                });
+
+                const data = await res.json();
+                console.log("后端返回:", data); // F12 控制台看这里
+
+                if(data.success) {
+                    // 成功：手动移除卡片
+                    const card = document.getElementById(`card-${filename}`);
+                    if(card) card.remove();
+                    // 提示一下
+                    console.log("入库成功");
+                } else {
+                    alert("入库失败: " + (data.msg || "未知错误"));
+                    if(btn) {
+                        btn.innerText = "入库";
+                        btn.disabled = false;
+                    }
+                }
+            } catch (err) {
+                console.error("请求发送失败:", err);
+                alert("网络请求失败，请检查 Python 后台是否报错");
+                if(btn) {
+                    btn.innerText = "入库";
+                    btn.disabled = false;
+                }
+            }
+        }
+
+        async function deletePerson(filename) {
+            await fetch('/delete_stranger', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ filename })
+            });
+            // 界面上可以立即移除，增强反馈感
+            const card = document.getElementById(`card-${filename}`);
+            if(card) card.remove();
+        }
+
+    </script>
+</body>
+</html>
